@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Draw with music!</title>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.39/build/Tone.min.js"></script>
+  <style>
+    @font-face {
+  font-family: "CLT Apfel Grotezk";
+  src: url("CLT Apfel Grotezk/web/ApfelGrotezk-Regular.woff2") format("woff2");
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  font-family: "CLT Apfel Grotezk", sans-serif;
+  background: url('white-wall.jpg') no-repeat center center fixed;
+  background-size: cover;
+  touch-action: none;
+}
+
+#title {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  text-align: center;
+  background: white;
+  font-size: clamp(1rem, 2vw, 2.5rem);
+  font-weight: bold;
+  padding: clamp(0.5rem, 0.9rem, 1.2rem);
+  z-index: 10;
+  animation: floatTitle 4s ease-in-out infinite;
+  transition: transform 0.3s ease;
+}
+
+@keyframes floatTitle {
+  0%, 100% {
+    transform: translateY(7px);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+#prompt {
+  position: fixed;
+  top: 90%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255,255,255,0.95);
+  padding: clamp(0.8rem, 1rem, 1.5rem) clamp(1.2rem, 2rem, 2.5rem);
+  border-radius: 20px;
+  font-size: clamp(0.8rem, 1vw, 1.2rem);
+  font-weight: bold;
+  z-index: 20;
+  animation: fadeOut 2s 2s forwards;
+  text-align: center;
+  max-width: 90vw;
+  box-sizing: border-box;
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+}
+
+#aOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2;
+  pointer-events: none;
+  display: none;
+}
+
+/* Circular dropdown styles */
+#circularDropdown {
+  position: fixed;
+  top: clamp(80px, 15vh, 120px);
+  left: clamp(20px, 4vw, 40px);
+  z-index: 15;
+}
+
+#dropdownToggle {
+  width: clamp(60px, 10vw, 80px);
+  height: clamp(60px, 10vw, 80px);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff179e, #9855fe, #45a0fc);
+  border: none;
+  color: white;
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+#dropdownToggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+#dropdownMenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 20px);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 200px);
+}
+
+#dropdownMenu.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: all;
+}
+
+.dropdown-item {
+  position: relative;
+  width: clamp(50px, 8vw, 65px);
+  height: clamp(50px, 8vw, 65px);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.7rem, 1.2vw, 1rem);
+  color: white;
+  font-family: "CLT Apfel Grotezk", sans-serif;
+  font-weight: bold;
+  transform: none;
+}
+
+.dropdown-item:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+#brushSizeContainer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 192, 203, 0.2);
+  border-radius: 15px;
+  border: 2px solid rgb(255, 0, 221);
+  backdrop-filter: blur(10px);
+  transform: none;
+}
+
+/* A Mode Cancel Button */
+#aCancelBtn {
+  position: fixed;
+  top: clamp(20px, 4vh, 40px);
+  right: clamp(20px, 4vw, 40px);
+  width: clamp(50px, 8vw, 70px);
+  height: clamp(50px, 8vw, 70px);
+  border-radius: 50%;
+  background: linear-gradient(45deg, #000 0%, #000 49%, #fff 49%, #fff 51%, #000 51%);
+  border: 3px solid #666;
+  color: white;
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  z-index: 20;
+}
+
+#aCancelBtn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+/* Color button styles */
+.pink { background-color: rgb(255, 0, 221); }
+.purple { background-color: rgb(92, 0, 157); }
+.yellow { background-color: rgb(255, 187, 0); }
+.orange { background-color: rgb(255, 77, 0); }
+.blue { background-color: rgb(125, 244, 255); }
+
+.gradient { 
+  background: radial-gradient(circle, 
+    rgb(255, 0, 221) 0%, 
+    rgb(92, 0, 157) 20%, 
+    rgb(255, 187, 0) 40%, 
+    rgb(255, 77, 0) 60%, 
+    rgb(125, 244, 255) 80%,
+    rgb(255, 0, 221) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.gradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle, 
+    rgb(255, 0, 221) 0%, 
+    rgb(92, 0, 157) 20%, 
+    rgb(255, 187, 0) 40%, 
+    rgb(255, 77, 0) 60%, 
+    rgb(125, 244, 255) 80%,
+    rgb(255, 0, 221) 100%);
+  animation: gradientShift 3s ease-in-out infinite;
+  border-radius: 50%;
+}
+
+@keyframes gradientShift {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.1); }
+}
+
+.eraser { 
+  background-color: #f0f0f0; 
+  color: #333;
+  border: 3px solid #999;
+}
+
+.a-button {
+  background-color: #000;
+  color: white;
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+}
+
+#brushSizeContainer {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 192, 203, 0.2);
+  border-radius: 15px;
+  border: 2px solid rgb(255, 0, 221);
+  backdrop-filter: blur(10px);
+}
+
+#brushSizeSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, rgb(255, 0, 221), rgb(255, 100, 200));
+  outline: none;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+#brushSizeSlider:hover {
+  opacity: 1;
+}
+
+#brushSizeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(255, 0, 221);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease;
+}
+
+#brushSizeSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+#brushSizeSlider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(255, 0, 221);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease;
+}
+
+#brushSizeSlider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+#brushSizeLabel {
+  font-size: clamp(0.6rem, 1vw, 1rem);
+  font-weight: bold;
+  color: rgb(255, 0, 221);
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+#mainResetBtn {
+  position: fixed;
+  bottom: clamp(10px, 3vh, 25px);
+  right: clamp(10px, 3vw, 25px);
+  background: linear-gradient(90deg, #ff179e, #9855fe, #45a0fc);
+  color: rgb(0, 0, 0);
+  z-index: 10;
+  padding: clamp(0.4rem, 0.6rem, 0.8rem) clamp(0.6rem, 1rem, 1.2rem);
+  font-weight: bold;
+  border: none;
+  border-radius: 15px;
+  font-size: clamp(0.7rem, 1rem, 1.1rem);
+  cursor: pointer;
+}
+
+#mainResetBtn:hover {
+  transform: scale(1.05);
+  background: linear-gradient(90deg, #c1ff3c, #55fef8,#45a0fc);
+  color: rgb(255, 255, 255);
+}
+
+#cameraBtn {
+  position: fixed;
+  bottom: clamp(10px, 3vh, 25px);
+  left: clamp(10px, 3vw, 25px);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  z-index: 10;
+  padding: clamp(0.4rem, 0.6rem, 0.8rem) clamp(0.6rem, 1rem, 1.2rem);
+  font-weight: bold;
+  border: none;
+  border-radius: 15px;
+  font-size: clamp(0.7rem, 1rem, 1.1rem);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#cameraBtn:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.hidden {
+  display: none;
+}
+
+/* Responsive positioning for dropdown items */
+@media (max-width: 768px) {
+  #circularDropdown {
+    top: clamp(70px, 12vh, 100px);
+    left: clamp(15px, 3vw, 30px);
+  }
+  
+  #dropdownToggle {
+    width: 55px;
+    height: 55px;
+    font-size: 1.2rem;
+  }
+  
+  .dropdown-item {
+    width: 45px;
+    height: 45px;
+    font-size: 0.8rem;
+  }
+
+  #dropdownMenu {
+    left: calc(100% + 10px);
+    gap: 10px;
+    max-width: calc(100vw - 120px);
+    flex-wrap: wrap;
+  }
+
+  #brushSizeContainer {
+    padding: 8px;
+  }
+
+  #brushSizeSlider {
+    width: 60px;
+  }
+
+  #aCancelBtn {
+    width: 45px;
+    height: 45px;
+    font-size: 1rem;
+    top: clamp(15px, 3vh, 30px);
+    right: clamp(15px, 3vw, 30px);
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  #circularDropdown {
+    top: clamp(90px, 12vh, 110px);
+    left: clamp(25px, 3.5vw, 35px);
+  }
+
+  #dropdownMenu {
+    left: calc(100% + 15px);
+    gap: 12px;
+    max-width: calc(100vw - 180px);
+  }
+}
+
+@media (min-width: 1025px) {
+  #circularDropdown {
+    top: clamp(100px, 15vh, 130px);
+    left: clamp(30px, 4vw, 50px);
+  }
+
+  #dropdownMenu {
+    left: calc(100% + 20px);
+    gap: 15px;
+    max-width: calc(100vw - 200px);
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+  #circularDropdown {
+    top: clamp(60px, 10vh, 80px);
+    left: clamp(15px, 2vw, 25px);
+  }
+  
+  #title {
+    font-size: clamp(0.9rem, 1.8vw, 1.5rem);
+    padding: clamp(0.3rem, 0.6rem, 0.8rem);
+  }
+  
+  #prompt {
+    top: 85%;
+    font-size: clamp(0.7rem, 1.2vw, 1rem);
+  }
+
+  #dropdownMenu {
+    left: calc(100% + 10px);
+    gap: 8px;
+    max-width: calc(100vw - 150px);
+    flex-wrap: wrap;
+  }
+
+  .dropdown-item {
+    width: 40px;
+    height: 40px;
+    font-size: 0.7rem;
+  }
+
+  #dropdownToggle {
+    width: 50px;
+    height: 50px;
+    font-size: 1rem;
+  }
+
+  #aCancelBtn {
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+}
+  </style>
+</head>
+<body>
+
+  <div id="prompt">Paint, Gradient, Erase, A Mode, Scrape.</div>
+
+  <div id="title">Draw, Hide, and Scratch to reveal!</div>
+  
+  <!-- Circular Dropdown -->
+  <div id="circularDropdown">
+    <button id="dropdownToggle">☰</button>
+    <div id="dropdownMenu">
+      <!-- Color buttons positioned in a horizontal line -->
+      <button class="dropdown-item pink" data-color="rgb(255, 0, 221)"></button>
+      <button class="dropdown-item purple" data-color="rgb(92, 0, 157)"></button>
+      <button class="dropdown-item yellow" data-color="rgb(255, 187, 0)"></button>
+      <button class="dropdown-item orange" data-color="rgb(255, 77, 0)"></button>
+      <button class="dropdown-item blue" data-color="rgb(125, 244, 255)"></button>
+      <button class="dropdown-item gradient" id="gradientBtn">🌈</button>
+      <button class="dropdown-item eraser" id="eraserBtn">⚪</button>
+      <button class="dropdown-item a-button" id="aBtn">A</button>
+      
+      <!-- Brush size container positioned at the end -->
+      <div id="brushSizeContainer">
+        <input type="range" id="brushSizeSlider" min="5" max="50" value="30" step="1">
+        <span id="brushSizeLabel">30px</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- A Mode Cancel Button -->
+  <button id="aCancelBtn">✕</button>
+
+  <button id="mainResetBtn">Reset</button>
+  <button id="cameraBtn">📷 Save</button>
+  <canvas id="colorCanvas"></canvas>
+  
+  <!-- A overlay canvas -->
+  <canvas id="aOverlay"></canvas>
+
+  <script>
+    const colorCanvas = document.getElementById('colorCanvas');
+    const aOverlay = document.getElementById('aOverlay');
+    const ctx = colorCanvas.getContext('2d');
+    const aCtx = aOverlay.getContext('2d');
+    const backgroundImage = new Image();
+    let audioInitialized = false;
+    let isTouchDevice = false;
+    let isAMode = false;
+    let aImage = null;
+
+    // Detect touch device
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      isTouchDevice = true;
+    }
+
+    // Create A image from the uploaded data
+    function createAImage() {
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 1000;
+        canvas.height = 1000;
+        
+        // Fill with transparent
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Create the "Aa" text
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 600px "Comic Sans MS", cursive';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Aa', canvas.width/2, canvas.height/2);
+        
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.src = canvas.toDataURL();
+      });
+    }
+
+    // Initialize A image
+    createAImage().then(img => {
+      aImage = img;
+    });
+
+    // Create a fallback white background
+    function createWhiteBackground() {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, colorCanvas.width, colorCanvas.height);
+    }
+
+    backgroundImage.src = 'white-wall.jpg';
+    backgroundImage.onerror = function() {
+      createWhiteBackground();
+    };
+
+    backgroundImage.onload = function() {
+      ctx.drawImage(backgroundImage, 0, 0, colorCanvas.width, colorCanvas.height);
+    };
+
+    function resizeCanvasDimensions() {
+      colorCanvas.width = aOverlay.width = window.innerWidth;
+      colorCanvas.height = aOverlay.height = window.innerHeight;
+      
+      if (backgroundImage.complete && backgroundImage.naturalWidth > 0) {
+        ctx.drawImage(backgroundImage, 0, 0, colorCanvas.width, colorCanvas.height);
+      } else {
+        createWhiteBackground();
+      }
+      
+      // Redraw A overlay if in A mode
+      if (isAMode && aImage) {
+        drawAOverlay();
+      }
+    }
+
+    function drawAOverlay() {
+      aCtx.clearRect(0, 0, aOverlay.width, aOverlay.height);
+      
+      // Fill entire canvas with black
+      aCtx.fillStyle = 'black';
+      aCtx.fillRect(0, 0, aOverlay.width, aOverlay.height);
+      
+      // Calculate scaling to fit image in canvas while maintaining aspect ratio
+      const scale = Math.min(aOverlay.width / aImage.width, aOverlay.height / aImage.height) * 0.8;
+      const scaledWidth = aImage.width * scale;
+      const scaledHeight = aImage.height * scale;
+      const x = (aOverlay.width - scaledWidth) / 2;
+      const y = (aOverlay.height - scaledHeight) / 2;
+      
+      // Use destination-out to create transparent areas where the A image is
+      aCtx.globalCompositeOperation = 'destination-out';
+      aCtx.drawImage(aImage, x, y, scaledWidth, scaledHeight);
+      aCtx.globalCompositeOperation = 'source-over';
+    }
+
+    function setAMode() {
+      initAudio();
+      isAMode = true;
+      isGradientMode = false;
+      isEraserMode = false;
+      aOverlay.style.display = 'block';
+      document.getElementById('aCancelBtn').style.display = 'flex';
+      if (aImage) {
+        drawAOverlay();
+      }
+      console.log('A mode activated');
+    }
+
+    function exitAMode() {
+      isAMode = false;
+      aOverlay.style.display = 'none';
+      document.getElementById('aCancelBtn').style.display = 'none';
+    }
+
+    resizeCanvasDimensions();
+    window.addEventListener('resize', resizeCanvasDimensions);
+
+    let painting = false;
+    let currentColor = 'rgb(255, 0, 221)';
+    let isGradientMode = false;
+    let isEraserMode = false;
+    let gradientColors = [];
+    let gradientIndex = 0;
+    let colorTimer = 0;
+    let colorDuration = 500;
+    let lastColorChangeTime = 0;
+    let currentGradientColor = null;
+    let nextGradientColor = null;
+    let colorTransitionProgress = 0;
+    let brushSize = 30;
+    let eraserAudioTimer = 0;
+    let lastPlayedNote = null;
+    let noteChangeThreshold = 80;
+    let eraserMoving = false;
+    let eraserPath = [];
+
+    let synth;
+    let currentNote = null;
+    let noteScheduler = null;
+    let playingNotes = new Set();
+
+    const colorNotes = {
+      pink: "C4",
+      purple: "D4",
+      yellow: "E4",
+      orange: "F4",
+      blue: "G4"
+    };
+
+    const colors = [
+      { name: 'pink', rgb: 'rgb(255, 0, 221)', r: 255, g: 0, b: 221 },
+      { name: 'purple', rgb: 'rgb(92, 0, 157)', r: 92, g: 0, b: 157 },
+      { name: 'yellow', rgb: 'rgb(255, 187, 0)', r: 255, g: 187, b: 0 },
+      { name: 'orange', rgb: 'rgb(255, 77, 0)', r: 255, g: 77, b: 0 },
+      { name: 'blue', rgb: 'rgb(125, 244, 255)', r: 125, g: 244, b: 255 }
+    ];
+
+    // Initialize audio context on first user interaction
+    async function initAudio() {
+      if (!audioInitialized) {
+        try {
+          await Tone.start();
+          synth = new Tone.AMSynth().toDestination();
+          audioInitialized = true;
+          console.log('Audio initialized successfully');
+        } catch (error) {
+          console.log('Audio initialization failed:', error);
+        }
+      }
+    }
+
+    function shuffleArray(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    function setColor(color) {
+      initAudio();
+      currentColor = color;
+      isGradientMode = false;
+      isEraserMode = false;
+      // Don't exit A mode when selecting colors
+      console.log('Color set to:', color);
+    }
+
+    function setGradientMode() {
+      initAudio();
+      isGradientMode = true;
+      isEraserMode = false;
+      // Don't exit A mode when selecting gradient
+      gradientColors = shuffleArray(colors);
+      gradientIndex = 0;
+      colorTimer = 0;
+      lastColorChangeTime = Date.now();
+      currentGradientColor = gradientColors[0];
+      nextGradientColor = gradientColors[1];
+      colorTransitionProgress = 0;
+      console.log('Gradient mode activated with colors:', gradientColors);
+    }
+
+    function setEraserMode() {
+      initAudio();
+      isEraserMode = true;
+      isGradientMode = false;
+      // Don't exit A mode when selecting eraser
+      console.log('Eraser mode activated');
+    }
+
+    function resetCanvas() {
+      ctx.clearRect(0, 0, colorCanvas.width, colorCanvas.height);
+      if (backgroundImage.complete && backgroundImage.naturalWidth > 0) {
+        ctx.drawImage(backgroundImage, 0, 0, colorCanvas.width, colorCanvas.height);
+      } else {
+        createWhiteBackground();
+      }
+      
+      if (isAMode) {
+        exitAMode();
+      }
+    }
+
+    function captureCanvas() {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      tempCanvas.width = colorCanvas.width;
+      tempCanvas.height = colorCanvas.height;
+      
+      tempCtx.drawImage(colorCanvas, 0, 0);
+      
+      if (isAMode && aOverlay.style.display !== 'none') {
+        tempCtx.drawImage(aOverlay, 0, 0);
+      }
+      
+      tempCanvas.toBlob(function(blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        const now = new Date();
+        const timestamp = now.getFullYear() + 
+          String(now.getMonth() + 1).padStart(2, '0') + 
+          String(now.getDate()).padStart(2, '0') + '_' +
+          String(now.getHours()).padStart(2, '0') + 
+          String(now.getMinutes()).padStart(2, '0') + 
+          String(now.getSeconds()).padStart(2, '0');
+        
+        link.download = `drawing_${timestamp}.png`;
+        
+        if (navigator.userAgent.match(/iPhone|iPad/)) {
+          const newWindow = window.open();
+          newWindow.document.write(`
+            <img src="${url}" style="max-width:100%; height:auto;">
+            <p>Tap and hold the image above, then select "Save to Photos" or "Save Image"</p>
+          `);
+          newWindow.document.title = `drawing_${timestamp}.png`;
+        } else {
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+        
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }, 'image/png', 1.0);
+    }
+
+    function getColorAtPixel(x, y) {
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const r = pixel[0], g = pixel[1], b = pixel[2], a = pixel[3];
+      
+      if (a === 0 || (r === 255 && g === 255 && b === 255)) return null;
+      
+      if (r === 255 && g === 0 && b === 221) return 'pink';
+      if (r === 92 && g === 0 && b === 157) return 'purple';
+      if (r === 255 && g === 187 && b === 0) return 'yellow';
+      if (r === 255 && g === 77 && b === 0) return 'orange';
+      if (r === 125 && g === 244 && b === 255) return 'blue';
+      
+      let closestColor = null;
+      let minDistance = Infinity;
+      
+      for (const color of colors) {
+        const distance = Math.sqrt(
+          Math.pow(r - color.r, 2) + 
+          Math.pow(g - color.g, 2) + 
+          Math.pow(b - color.b, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestColor = color.name;
+        }
+      }
+      
+      return minDistance < 100 ? closestColor : null;
+    }
+
+    async function playNote(colorName) {
+      const note = colorNotes[colorName];
+      if (note && audioInitialized && synth) {
+        try {
+          if (isGradientMode) {
+            synth.triggerAttackRelease(note, "4n");
+          } else {
+            synth.triggerAttackRelease(note, "8n");
+          }
+        } catch (error) {
+          console.log('Audio playback error:', error);
+        }
+      }
+    }
+
+    function interpolateColor(color1, color2, progress) {
+      const r = Math.round(color1.r + (color2.r - color1.r) * progress);
+      const g = Math.round(color1.g + (color2.g - color1.g) * progress);
+      const b = Math.round(color1.b + (color2.b - color1.b) * progress);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function updateGradientColor() {
+      if (!isGradientMode) return currentColor;
+
+      const now = Date.now();
+      const elapsed = now - lastColorChangeTime;
+      
+      colorTransitionProgress = Math.min(elapsed / colorDuration, 1);
+      
+      if (colorTransitionProgress >= 1) {
+        gradientIndex = (gradientIndex + 1) % gradientColors.length;
+        currentGradientColor = gradientColors[gradientIndex];
+        nextGradientColor = gradientColors[(gradientIndex + 1) % gradientColors.length];
+        lastColorChangeTime = now;
+        colorTransitionProgress = 0;
+        
+        playNote(currentGradientColor.name);
+      }
+      
+      return interpolateColor(currentGradientColor, nextGradientColor, colorTransitionProgress);
+    }
+
+    function getColorNameFromRGB(rgbString) {
+      const match = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+      if (!match) return null;
+      
+      const r = parseInt(match[1]);
+      const g = parseInt(match[2]);
+      const b = parseInt(match[3]);
+      
+      let closestColor = null;
+      let minDistance = Infinity;
+      
+      for (const color of colors) {
+        const distance = Math.sqrt(
+          Math.pow(r - color.r, 2) + 
+          Math.pow(g - color.g, 2) + 
+          Math.pow(b - color.b, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestColor = color.name;
+        }
+      }
+      
+      return closestColor;
+    }
+
+    function getRandomColorForEraser() {
+      const randomIndex = Math.floor(Math.random() * colors.length);
+      return colors[randomIndex].name;
+    }
+
+    function shouldPlayEraserAudio() {
+      const now = Date.now();
+      if (now - eraserAudioTimer > 60) {
+        eraserAudioTimer = now;
+        return true;
+      }
+      return false;
+    }
+
+    function playNoteIfDifferent(colorName, forcePlay = false) {
+      const now = Date.now();
+      if (colorName && (forcePlay || colorName !== lastPlayedNote || now - eraserAudioTimer > noteChangeThreshold)) {
+        playNote(colorName);
+        lastPlayedNote = colorName;
+        return true;
+      }
+      return false;
+    }
+
+    function getDetailedColorSample(x, y, radius = 8) {
+      const samples = [];
+      const step = 2;
+      
+      for (let angle = 0; angle < 360; angle += 45) {
+        const rad = (angle * Math.PI) / 180;
+        const px = Math.round(x + Math.cos(rad) * radius);
+        const py = Math.round(y + Math.sin(rad) * radius);
+        
+        if (px >= 0 && py >= 0 && px < colorCanvas.width && py < colorCanvas.height) {
+          const color = getColorAtPixel(px, py);
+          if (color) samples.push(color);
+        }
+      }
+      
+      const centerSamples = [
+        [x, y], [x-1, y], [x+1, y], [x, y-1], [x, y+1]
+      ];
+      
+      for (const [px, py] of centerSamples) {
+        if (px >= 0 && py >= 0 && px < colorCanvas.width && py < colorCanvas.height) {
+          const color = getColorAtPixel(px, py);
+          if (color) samples.push(color);
+        }
+      }
+      
+      if (samples.length === 0) return null;
+      
+      const colorCounts = {};
+      samples.forEach(color => {
+        colorCounts[color] = (colorCounts[color] || 0) + 1;
+      });
+      
+      return Object.keys(colorCounts).reduce((a, b) => 
+        colorCounts[a] > colorCounts[b] ? a : b
+      );
+    }
+
+    function maintainEraserAudio() {
+      if (isEraserMode && painting && eraserMoving) {
+        const lastPoint = eraserPath[eraserPath.length - 1];
+        if (lastPoint) {
+          const colorName = getDetailedColorSample(lastPoint.x, lastPoint.y);
+          if (colorName) {
+            const now = Date.now();
+            if (now - eraserAudioTimer > 80 || colorName !== lastPlayedNote) {
+              playNoteIfDifferent(colorName);
+              eraserAudioTimer = now;
+            }
+          }
+        }
+      }
+    }
+
+    function draw(x, y) {
+      if (!painting) return;
+
+      if (isEraserMode) {
+        eraserPath.push({x, y, timestamp: Date.now()});
+        if (eraserPath.length > 10) {
+          eraserPath.shift();
+        }
+        
+        eraserMoving = true;
+        
+        const colorName = getDetailedColorSample(x, y, brushSize / 3);
+        
+        if (colorName) {
+          const now = Date.now();
+          const timeSinceLastNote = now - eraserAudioTimer;
+          
+          if (colorName !== lastPlayedNote || timeSinceLastNote > 60) {
+            playNoteIfDifferent(colorName, timeSinceLastNote > 120);
+          }
+        }
+        
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2, false);
+        ctx.fill();
+        ctx.restore();
+      } else if (isGradientMode) {
+        const gradientColor = updateGradientColor();
+        
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = gradientColor;
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = "round";
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = "round";
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        
+        const colorName = getColorNameFromRGB(currentColor);
+        if (colorName) playNote(colorName);
+      }
+    }
+
+    function getEventCoords(e) {
+      const rect = colorCanvas.getBoundingClientRect();
+      let x, y;
+      
+      if (e.touches && e.touches.length > 0) {
+        x = e.touches[0].clientX - rect.left;
+        y = e.touches[0].clientY - rect.top;
+      } else {
+        x = e.clientX - rect.left;
+        y = e.clientY - rect.top;
+      }
+      
+      x = x * (colorCanvas.width / rect.width);
+      y = y * (colorCanvas.height / rect.height);
+      
+      return { x, y };
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      initAudio();
+      painting = true;
+      
+      lastPlayedNote = null;
+      eraserAudioTimer = 0;
+      eraserMoving = false;
+      eraserPath = [];
+      
+      const coords = getEventCoords(e);
+      ctx.beginPath();
+      ctx.moveTo(coords.x, coords.y);
+      
+      if (isGradientMode) {
+        gradientColors = shuffleArray(colors);
+        gradientIndex = 0;
+        lastColorChangeTime = Date.now();
+        currentGradientColor = gradientColors[0];
+        nextGradientColor = gradientColors[1];
+        colorTransitionProgress = 0;
+        if (audioInitialized && synth) {
+          try {
+            synth.triggerAttackRelease(colorNotes[currentGradientColor.name], "2n");
+          } catch (error) {
+            console.log('Audio playback error:', error);
+          }
+        }
+      }
+      
+      draw(coords.x, coords.y);
+    }
+
+    function endDraw(e) {
+      e.preventDefault();
+      painting = false;
+      eraserMoving = false;
+      eraserPath = [];
+      ctx.beginPath();
+    }
+
+    function moveDraw(e) {
+      e.preventDefault();
+      if (!painting) return;
+      const coords = getEventCoords(e);
+      draw(coords.x, coords.y);
+    }
+
+    // Dropdown functionality
+    const dropdownToggle = document.getElementById('dropdownToggle');
+    const dropdownMenu = document.getElementById('dropdownMenu');
+    let isDropdownOpen = false;
+
+    function toggleDropdown() {
+      isDropdownOpen = !isDropdownOpen;
+      if (isDropdownOpen) {
+        dropdownMenu.classList.add('open');
+        dropdownToggle.textContent = '✕';
+      } else {
+        dropdownMenu.classList.remove('open');
+        dropdownToggle.textContent = '☰';
+      }
+    }
+
+    dropdownToggle.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDropdown();
+    });
+
+    dropdownToggle.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDropdown();
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!dropdownMenu.contains(e.target) && !dropdownToggle.contains(e.target)) {
+        if (isDropdownOpen) {
+          toggleDropdown();
+        }
+      }
+    });
+
+    // Color button event listeners
+    document.querySelectorAll('.dropdown-item[data-color]').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const color = this.getAttribute('data-color');
+        setColor(color);
+        toggleDropdown();
+      });
+      
+      button.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const color = this.getAttribute('data-color');
+        setColor(color);
+        toggleDropdown();
+      });
+    });
+
+    // Gradient button
+    document.getElementById('gradientBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setGradientMode();
+      toggleDropdown();
+    });
+
+    document.getElementById('gradientBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setGradientMode();
+      toggleDropdown();
+    });
+
+    // Eraser button
+    document.getElementById('eraserBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setEraserMode();
+      toggleDropdown();
+    });
+
+    document.getElementById('eraserBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setEraserMode();
+      toggleDropdown();
+    });
+
+    // A button
+    document.getElementById('aBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setAMode();
+      // Don't close dropdown when A is selected
+    });
+
+    document.getElementById('aBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setAMode();
+      // Don't close dropdown when A is selected
+    });
+
+    // A Cancel button
+    document.getElementById('aCancelBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      exitAMode();
+    });
+
+    document.getElementById('aCancelBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      exitAMode();
+    });
+
+    // Brush size slider
+    const brushSizeSlider = document.getElementById('brushSizeSlider');
+    const brushSizeLabel = document.getElementById('brushSizeLabel');
+    
+    brushSizeSlider.addEventListener('input', function(e) {
+      e.stopPropagation();
+      brushSize = parseInt(e.target.value);
+      brushSizeLabel.textContent = brushSize + 'px';
+    });
+
+    brushSizeSlider.addEventListener('change', function(e) {
+      e.stopPropagation();
+      brushSize = parseInt(e.target.value);
+      brushSizeLabel.textContent = brushSize + 'px';
+    });
+
+    // Reset button
+    document.getElementById('mainResetBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      resetCanvas();
+    });
+
+    document.getElementById('mainResetBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      resetCanvas();
+    });
+
+    // Camera button
+    document.getElementById('cameraBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      captureCanvas();
+    });
+
+    document.getElementById('cameraBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      captureCanvas();
+    });
+
+    // Canvas drawing events
+    if (isTouchDevice) {
+      colorCanvas.addEventListener('touchstart', startDraw, { passive: false });
+      colorCanvas.addEventListener('touchend', endDraw, { passive: false });
+      colorCanvas.addEventListener('touchmove', moveDraw, { passive: false });
+    } else {
+      colorCanvas.addEventListener('mousedown', startDraw);
+      colorCanvas.addEventListener('mouseup', endDraw);
+      colorCanvas.addEventListener('mousemove', moveDraw);
+    }
+
+    // Ensure audio context is started on any user interaction
+    document.addEventListener('touchstart', initAudio, { once: true });
+    document.addEventListener('click', initAudio, { once: true });
+
+    // Continuous audio maintenance for eraser
+    setInterval(maintainEraserAudio, 50);
+  </script>
+</body>
+</html>
