@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Draw with music!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/tone@14.8.39/build/Tone.min.js"></script>
   <style>
     @font-face {
@@ -120,25 +121,34 @@ canvas {
   box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 
+#dropdownToggle.selected {
+  box-shadow: 0 0 20px #fff, 0 0 30px #fff, 0 0 40px #fff;
+}
+
 #dropdownMenu {
   position: absolute;
-  top: 0;
-  left: calc(100% + 20px);
+  top: calc(100% + 20px);
+  left: 0;
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s ease;
   pointer-events: none;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 15px;
-  flex-wrap: wrap;
-  max-width: calc(100vw - 200px);
+  align-items: center;
 }
 
 #dropdownMenu.open {
   opacity: 1;
   visibility: visible;
   pointer-events: all;
+}
+
+.dropdown-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
 }
 
 .dropdown-item {
@@ -163,6 +173,10 @@ canvas {
 .dropdown-item:hover {
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.dropdown-item.selected {
+  box-shadow: 0 0 15px #fff, 0 0 25px #fff, 0 0 35px #fff;
 }
 
 #brushSizeContainer {
@@ -204,6 +218,71 @@ canvas {
 #aCancelBtn:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+/* Letter Grid Modal */
+#letterGridModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 25;
+}
+
+#letterGrid {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.letter-item {
+  width: clamp(60px, 8vw, 80px);
+  height: clamp(60px, 8vw, 80px);
+  border: 2px solid #ccc;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+  color: #333;
+}
+
+.letter-item:hover {
+  transform: scale(1.1);
+  border-color: #ff179e;
+  background: #f0f0f0;
+}
+
+#closeLetterGrid {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #ff179e;
+  color: white;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Color button styles */
@@ -258,19 +337,6 @@ canvas {
   background-color: #000;
   color: white;
   font-size: clamp(1.2rem, 2vw, 1.8rem);
-}
-
-#brushSizeContainer {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: rgba(255, 192, 203, 0.2);
-  border-radius: 15px;
-  border: 2px solid rgb(255, 0, 221);
-  backdrop-filter: blur(10px);
 }
 
 #brushSizeSlider {
@@ -394,11 +460,8 @@ canvas {
     font-size: 0.8rem;
   }
 
-  #dropdownMenu {
-    left: calc(100% + 10px);
+  .dropdown-row {
     gap: 10px;
-    max-width: calc(100vw - 120px);
-    flex-wrap: wrap;
   }
 
   #brushSizeContainer {
@@ -416,6 +479,18 @@ canvas {
     top: clamp(15px, 3vh, 30px);
     right: clamp(15px, 3vw, 30px);
   }
+
+  #letterGrid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 15px;
+  }
+
+  .letter-item {
+    width: clamp(50px, 12vw, 60px);
+    height: clamp(50px, 12vw, 60px);
+    font-size: clamp(0.8rem, 2.5vw, 1.2rem);
+  }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
@@ -424,10 +499,8 @@ canvas {
     left: clamp(25px, 3.5vw, 35px);
   }
 
-  #dropdownMenu {
-    left: calc(100% + 15px);
+  .dropdown-row {
     gap: 12px;
-    max-width: calc(100vw - 180px);
   }
 }
 
@@ -437,10 +510,8 @@ canvas {
     left: clamp(30px, 4vw, 50px);
   }
 
-  #dropdownMenu {
-    left: calc(100% + 20px);
+  .dropdown-row {
     gap: 15px;
-    max-width: calc(100vw - 200px);
   }
 }
 
@@ -461,11 +532,8 @@ canvas {
     font-size: clamp(0.7rem, 1.2vw, 1rem);
   }
 
-  #dropdownMenu {
-    left: calc(100% + 10px);
+  .dropdown-row {
     gap: 8px;
-    max-width: calc(100vw - 150px);
-    flex-wrap: wrap;
   }
 
   .dropdown-item {
@@ -490,7 +558,7 @@ canvas {
 </head>
 <body>
 
-  <div id="prompt">Paint, Gradient, Erase, A Mode, Scrape.</div>
+  <div id="prompt">Paint, Gradient, Erase, A/a Mode, Scrape.</div>
 
   <div id="title">Draw, Hide, and Scratch to reveal!</div>
   
@@ -498,21 +566,36 @@ canvas {
   <div id="circularDropdown">
     <button id="dropdownToggle">☰</button>
     <div id="dropdownMenu">
-      <!-- Color buttons positioned in a horizontal line -->
-      <button class="dropdown-item pink" data-color="rgb(255, 0, 221)"></button>
-      <button class="dropdown-item purple" data-color="rgb(92, 0, 157)"></button>
-      <button class="dropdown-item yellow" data-color="rgb(255, 187, 0)"></button>
-      <button class="dropdown-item orange" data-color="rgb(255, 77, 0)"></button>
-      <button class="dropdown-item blue" data-color="rgb(125, 244, 255)"></button>
-      <button class="dropdown-item gradient" id="gradientBtn">🌈</button>
-      <button class="dropdown-item eraser" id="eraserBtn">⚪</button>
-      <button class="dropdown-item a-button" id="aBtn">A</button>
-      
-      <!-- Brush size container positioned at the end -->
-      <div id="brushSizeContainer">
-        <input type="range" id="brushSizeSlider" min="5" max="50" value="30" step="1">
-        <span id="brushSizeLabel">30px</span>
+      <!-- Colors row -->
+      <div class="dropdown-row">
+        <button class="dropdown-item pink" data-color="rgb(255, 0, 221)"></button>
+        <button class="dropdown-item purple" data-color="rgb(92, 0, 157)"></button>
+        <button class="dropdown-item yellow" data-color="rgb(255, 187, 0)"></button>
+        <button class="dropdown-item orange" data-color="rgb(255, 77, 0)"></button>
+        <button class="dropdown-item blue" data-color="rgb(125, 244, 255)"></button>
       </div>
+      
+      <!-- Tools row -->
+      <div class="dropdown-row">
+        <button class="dropdown-item gradient" id="gradientBtn">🌈</button>
+        <button class="dropdown-item eraser" id="eraserBtn">⚪</button>
+        
+        <!-- Brush size container positioned to the right -->
+        <div id="brushSizeContainer">
+          <input type="range" id="brushSizeSlider" min="5" max="50" value="30" step="1">
+          <span id="brushSizeLabel">30px</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- A/a button positioned to the right of dropdown toggle -->
+    <button class="dropdown-item a-button" id="aBtn" style="position: absolute; top: 0; left: calc(100% + 20px);">A/a</button>
+  </div>
+
+  <!-- Letter Grid Modal -->
+  <div id="letterGridModal">
+    <div id="letterGrid">
+      <button id="closeLetterGrid">✕</button>
     </div>
   </div>
 
@@ -536,13 +619,58 @@ canvas {
     let isTouchDevice = false;
     let isAMode = false;
     let aImage = null;
+    let selectedLetter = 'A';
+    let selectedButton = null;
 
     // Detect touch device
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
       isTouchDevice = true;
     }
 
-    // Create A image from the uploaded data
+    // Create letter grid
+    function createLetterGrid() {
+      const letterGrid = document.getElementById('letterGrid');
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const numbers = '0123456789';
+      
+      // Clear existing content except close button
+      const closeBtn = document.getElementById('closeLetterGrid');
+      letterGrid.innerHTML = '';
+      letterGrid.appendChild(closeBtn);
+      
+      // Add letters
+      for (let i = 0; i < letters.length; i++) {
+        const letter = letters[i];
+        const letterItem = document.createElement('button');
+        letterItem.className = 'letter-item';
+        letterItem.textContent = letter + letter.toLowerCase();
+        letterItem.addEventListener('click', () => selectLetter(letter));
+        letterGrid.appendChild(letterItem);
+      }
+      
+      // Add numbers
+      for (let i = 0; i < numbers.length; i++) {
+        const number = numbers[i];
+        const numberItem = document.createElement('button');
+        numberItem.className = 'letter-item';
+        numberItem.textContent = number;
+        numberItem.addEventListener('click', () => selectLetter(number));
+        letterGrid.appendChild(numberItem);
+      }
+    }
+
+    function selectLetter(letter) {
+      selectedLetter = letter;
+      document.getElementById('letterGridModal').style.display = 'none';
+      createAImage().then(img => {
+        aImage = img;
+        if (isAMode) {
+          drawAOverlay();
+        }
+      });
+    }
+
+    // Create A image from the selected letter
     function createAImage() {
       return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
@@ -555,12 +683,12 @@ canvas {
         // Fill with transparent
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Create the "Aa" text
+        // Create the selected letter/number
         ctx.fillStyle = 'white';
         ctx.font = 'bold 600px "Comic Sans MS", cursive';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Aa', canvas.width/2, canvas.height/2);
+        ctx.fillText(selectedLetter, canvas.width/2, canvas.height/2);
         
         const img = new Image();
         img.onload = () => resolve(img);
@@ -568,7 +696,8 @@ canvas {
       });
     }
 
-    // Initialize A image
+    // Initialize letter grid and A image
+    createLetterGrid();
     createAImage().then(img => {
       aImage = img;
     });
@@ -618,10 +747,23 @@ canvas {
       const x = (aOverlay.width - scaledWidth) / 2;
       const y = (aOverlay.height - scaledHeight) / 2;
       
-      // Use destination-out to create transparent areas where the A image is
+      // Use destination-out to create transparent areas where the letter image is
       aCtx.globalCompositeOperation = 'destination-out';
       aCtx.drawImage(aImage, x, y, scaledWidth, scaledHeight);
       aCtx.globalCompositeOperation = 'source-over';
+    }
+
+    function setSelectedButton(button) {
+      // Remove selection from previous button
+      if (selectedButton) {
+        selectedButton.classList.remove('selected');
+      }
+      
+      // Add selection to new button
+      if (button) {
+        button.classList.add('selected');
+        selectedButton = button;
+      }
     }
 
     function setAMode() {
@@ -631,16 +773,20 @@ canvas {
       isEraserMode = false;
       aOverlay.style.display = 'block';
       document.getElementById('aCancelBtn').style.display = 'flex';
+      setSelectedButton(document.getElementById('aBtn'));
       if (aImage) {
         drawAOverlay();
       }
-      console.log('A mode activated');
+      console.log('A mode activated with letter:', selectedLetter);
     }
 
     function exitAMode() {
       isAMode = false;
       aOverlay.style.display = 'none';
       document.getElementById('aCancelBtn').style.display = 'none';
+      if (selectedButton === document.getElementById('aBtn')) {
+        setSelectedButton(null);
+      }
     }
 
     resizeCanvasDimensions();
@@ -690,6 +836,16 @@ canvas {
     async function initAudio() {
       if (!audioInitialized) {
         try {
+          // iOS/Safari/Android audio unlock workaround
+          if (window.Tone && Tone.context && Tone.context.state !== 'running') {
+            const unlock = () => {
+              Tone.context.resume();
+              document.removeEventListener('touchstart', unlock);
+              document.removeEventListener('click', unlock);
+            };
+            document.addEventListener('touchstart', unlock, { once: true });
+            document.addEventListener('click', unlock, { once: true });
+          }
           await Tone.start();
           synth = new Tone.AMSynth().toDestination();
           audioInitialized = true;
@@ -709,20 +865,20 @@ canvas {
       return shuffled;
     }
 
-    function setColor(color) {
+    function setColor(color, button) {
       initAudio();
       currentColor = color;
       isGradientMode = false;
       isEraserMode = false;
-      // Don't exit A mode when selecting colors
+      setSelectedButton(button);
       console.log('Color set to:', color);
     }
 
-    function setGradientMode() {
+    function setGradientMode(button) {
       initAudio();
       isGradientMode = true;
       isEraserMode = false;
-      // Don't exit A mode when selecting gradient
+      setSelectedButton(button);
       gradientColors = shuffleArray(colors);
       gradientIndex = 0;
       colorTimer = 0;
@@ -733,11 +889,11 @@ canvas {
       console.log('Gradient mode activated with colors:', gradientColors);
     }
 
-    function setEraserMode() {
+    function setEraserMode(button) {
       initAudio();
       isEraserMode = true;
       isGradientMode = false;
-      // Don't exit A mode when selecting eraser
+      setSelectedButton(button);
       console.log('Eraser mode activated');
     }
 
@@ -803,7 +959,10 @@ canvas {
       const pixel = ctx.getImageData(x, y, 1, 1).data;
       const r = pixel[0], g = pixel[1], b = pixel[2], a = pixel[3];
       
-      if (a === 0 || (r === 255 && g === 255 && b === 255)) return null;
+      if (a === 0) return null;
+      
+      // Don't erase white background - check if it's close to white
+      if (r > 240 && g > 240 && b > 240) return null;
       
       if (r === 255 && g === 0 && b === 221) return 'pink';
       if (r === 92 && g === 0 && b === 157) return 'purple';
@@ -998,12 +1157,31 @@ canvas {
           }
         }
         
-        ctx.save();
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.beginPath();
-        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2, false);
-        ctx.fill();
-        ctx.restore();
+        // Only erase drawn content, not background
+        const imageData = ctx.getImageData(x - brushSize/2, y - brushSize/2, brushSize, brushSize);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+          
+          // Only erase if it's not background (white or very light colors)
+          if (!(r > 240 && g > 240 && b > 240)) {
+            // Check if pixel is within brush circle
+            const pixelIndex = i / 4;
+            const pixelX = (pixelIndex % brushSize) - brushSize/2;
+            const pixelY = Math.floor(pixelIndex / brushSize) - brushSize/2;
+            const distance = Math.sqrt(pixelX * pixelX + pixelY * pixelY);
+            
+            if (distance <= brushSize/2) {
+              data[i + 3] = 0; // Make transparent
+            }
+          }
+        }
+        
+        ctx.putImageData(imageData, x - brushSize/2, y - brushSize/2);
       } else if (isGradientMode) {
         const gradientColor = updateGradientColor();
         
@@ -1104,9 +1282,11 @@ canvas {
       if (isDropdownOpen) {
         dropdownMenu.classList.add('open');
         dropdownToggle.textContent = '✕';
+        dropdownToggle.classList.add('selected');
       } else {
         dropdownMenu.classList.remove('open');
         dropdownToggle.textContent = '☰';
+        dropdownToggle.classList.remove('selected');
       }
     }
 
@@ -1122,31 +1302,20 @@ canvas {
       toggleDropdown();
     });
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-      if (!dropdownMenu.contains(e.target) && !dropdownToggle.contains(e.target)) {
-        if (isDropdownOpen) {
-          toggleDropdown();
-        }
-      }
-    });
-
     // Color button event listeners
     document.querySelectorAll('.dropdown-item[data-color]').forEach(button => {
       button.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
         const color = this.getAttribute('data-color');
-        setColor(color);
-        toggleDropdown();
+        setColor(color, this);
       });
       
       button.addEventListener('touchend', function(e) {
         e.preventDefault();
         e.stopPropagation();
         const color = this.getAttribute('data-color');
-        setColor(color);
-        toggleDropdown();
+        setColor(color, this);
       });
     });
 
@@ -1154,45 +1323,46 @@ canvas {
     document.getElementById('gradientBtn').addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      setGradientMode();
-      toggleDropdown();
+      setGradientMode(this);
     });
 
     document.getElementById('gradientBtn').addEventListener('touchend', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      setGradientMode();
-      toggleDropdown();
+      setGradientMode(this);
     });
 
     // Eraser button
     document.getElementById('eraserBtn').addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      setEraserMode();
-      toggleDropdown();
+      setEraserMode(this);
     });
 
     document.getElementById('eraserBtn').addEventListener('touchend', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      setEraserMode();
-      toggleDropdown();
+      setEraserMode(this);
     });
 
-    // A button
+    // A/a button
     document.getElementById('aBtn').addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      setAMode();
-      // Don't close dropdown when A is selected
+      document.getElementById('letterGridModal').style.display = 'flex';
     });
 
     document.getElementById('aBtn').addEventListener('touchend', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      setAMode();
-      // Don't close dropdown when A is selected
+      document.getElementById('letterGridModal').style.display = 'flex';
+    });
+
+    // Close letter grid
+    document.getElementById('closeLetterGrid').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('letterGridModal').style.display = 'none';
     });
 
     // A Cancel button
@@ -1263,6 +1433,9 @@ canvas {
 
     // Continuous audio maintenance for eraser
     setInterval(maintainEraserAudio, 50);
+
+    // Set initial color selection
+    setColor('rgb(255, 0, 221)', document.querySelector('.dropdown-item.pink'));
   </script>
 </body>
 </html>
