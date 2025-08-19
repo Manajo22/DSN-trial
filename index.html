@@ -70,6 +70,39 @@ html, body {
   }
 }
 
+/* Audio Enable Button */
+#audioEnableBtn {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, #ff179e, #9855fe, #45a0fc);
+  color: white;
+  border: none;
+  padding: 20px 40px;
+  border-radius: 25px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+  z-index: 30;
+  display: none;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+#audioEnableBtn:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
 canvas {
   display: block;
   position: absolute;
@@ -562,6 +595,9 @@ canvas {
 
   <div id="title">Draw, Hide, and Scratch to reveal!</div>
   
+  <!-- Audio Enable Button -->
+  <button id="audioEnableBtn">🎵 Tap to Enable Audio</button>
+
   <!-- Circular Dropdown -->
   <div id="circularDropdown">
     <button id="dropdownToggle">☰</button>
@@ -616,6 +652,7 @@ canvas {
     const aCtx = aOverlay.getContext('2d');
     const backgroundImage = new Image();
     let audioInitialized = false;
+    let audioEnabled = false;
     let isTouchDevice = false;
     let isAMode = false;
     let aImage = null;
@@ -626,6 +663,17 @@ canvas {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
       isTouchDevice = true;
     }
+
+    // Show audio enable button for mobile devices
+    function showAudioEnableButton() {
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile && !audioEnabled) {
+        document.getElementById('audioEnableBtn').style.display = 'block';
+      }
+    }
+
+    // Initialize and show audio button on page load
+    setTimeout(showAudioEnableButton, 1000);
 
     // Create letter grid
     function createLetterGrid() {
@@ -832,29 +880,79 @@ canvas {
       { name: 'blue', rgb: 'rgb(125, 244, 255)', r: 125, g: 244, b: 255 }
     ];
 
-    // Initialize audio context on first user interaction
+    // Enhanced audio initialization with better mobile support
     async function initAudio() {
       if (!audioInitialized) {
         try {
-          // iOS/Safari/Android audio unlock workaround
-          if (window.Tone && Tone.context && Tone.context.state !== 'running') {
-            const unlock = () => {
-              Tone.context.resume();
-              document.removeEventListener('touchstart', unlock);
-              document.removeEventListener('click', unlock);
-            };
-            document.addEventListener('touchstart', unlock, { once: true });
-            document.addEventListener('click', unlock, { once: true });
+          // Wait for user gesture before initializing
+          if (Tone.context.state === 'suspended') {
+            await Tone.context.resume();
           }
+          
           await Tone.start();
-          synth = new Tone.AMSynth().toDestination();
+          
+          // Create synth with better mobile compatibility
+          synth = new Tone.AMSynth({
+            oscillator: {
+              type: "sine"
+            },
+            envelope: {
+              attack: 0.01,
+              decay: 0.2,
+              sustain: 0.3,
+              release: 0.8
+            }
+          }).toDestination();
+          
+          // Set master volume to ensure audibility
+          Tone.Destination.volume.rampTo(-10, 0.001);
+          
           audioInitialized = true;
+          audioEnabled = true;
           console.log('Audio initialized successfully');
+          
+          // Hide the audio enable button
+          document.getElementById('audioEnableBtn').style.display = 'none';
+          
+          return true;
         } catch (error) {
           console.log('Audio initialization failed:', error);
+          return false;
         }
       }
+      return audioInitialized;
     }
+
+    // Audio enable button handler
+    document.getElementById('audioEnableBtn').addEventListener('click', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const success = await initAudio();
+      if (success) {
+        // Play a test note to confirm audio is working
+        setTimeout(() => {
+          if (synth && audioInitialized) {
+            synth.triggerAttackRelease("C4", "8n");
+          }
+        }, 100);
+      }
+    });
+
+    document.getElementById('audioEnableBtn').addEventListener('touchend', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const success = await initAudio();
+      if (success) {
+        // Play a test note to confirm audio is working
+        setTimeout(() => {
+          if (synth && audioInitialized) {
+            synth.triggerAttackRelease("C4", "8n");
+          }
+        }, 100);
+      }
+    });
 
     function shuffleArray(array) {
       const shuffled = [...array];
@@ -988,14 +1086,21 @@ canvas {
       return minDistance < 100 ? closestColor : null;
     }
 
+    // Enhanced audio playback with better mobile support
     async function playNote(colorName) {
       const note = colorNotes[colorName];
-      if (note && audioInitialized && synth) {
+      if (note && audioInitialized && audioEnabled && synth) {
         try {
+          // Ensure audio context is running
+          if (Tone.context.state === 'suspended') {
+            await Tone.context.resume();
+          }
+          
+          // Use a more aggressive approach for mobile
           if (isGradientMode) {
-            synth.triggerAttackRelease(note, "4n");
+            synth.triggerAttackRelease(note, "4n", "+0", 0.7);
           } else {
-            synth.triggerAttackRelease(note, "8n");
+            synth.triggerAttackRelease(note, "8n", "+0", 0.5);
           }
         } catch (error) {
           console.log('Audio playback error:', error);
@@ -1226,7 +1331,12 @@ canvas {
 
     function startDraw(e) {
       e.preventDefault();
-      initAudio();
+      
+      // Try to initialize audio with user gesture
+      if (!audioInitialized) {
+        initAudio();
+      }
+      
       painting = true;
       
       lastPlayedNote = null;
@@ -1245,9 +1355,9 @@ canvas {
         currentGradientColor = gradientColors[0];
         nextGradientColor = gradientColors[1];
         colorTransitionProgress = 0;
-        if (audioInitialized && synth) {
+        if (audioInitialized && audioEnabled && synth) {
           try {
-            synth.triggerAttackRelease(colorNotes[currentGradientColor.name], "2n");
+            synth.triggerAttackRelease(colorNotes[currentGradientColor.name], "2n", "+0", 0.7);
           } catch (error) {
             console.log('Audio playback error:', error);
           }
@@ -1427,9 +1537,15 @@ canvas {
       colorCanvas.addEventListener('mousemove', moveDraw);
     }
 
-    // Ensure audio context is started on any user interaction
-    document.addEventListener('touchstart', initAudio, { once: true });
-    document.addEventListener('click', initAudio, { once: true });
+    // Multiple fallback attempts for audio initialization
+    const audioInitEvents = ['touchstart', 'touchend', 'click', 'mousedown', 'keydown'];
+    audioInitEvents.forEach(eventType => {
+      document.addEventListener(eventType, function initAttempt() {
+        if (!audioInitialized) {
+          initAudio();
+        }
+      }, { once: true, passive: false });
+    });
 
     // Continuous audio maintenance for eraser
     setInterval(maintainEraserAudio, 50);
