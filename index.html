@@ -885,62 +885,82 @@ canvas {
       { name: 'blue', rgb: 'rgb(125, 244, 255)', r: 125, g: 244, b: 255 }
     ];
 
-    // Enhanced audio initialization with multiple unlock strategies
+    // Phone-first audio initialization strategy
     async function initAudio() {
       if (audioInitialized) return true;
       
       try {
         updateAudioStatus('initializing', '🔊 Starting audio...');
+        console.log('Starting audio initialization...');
         
-        // Strategy 1: Direct Tone.start() - works on iPad/desktop
-        await Tone.start();
-        console.log('Tone.js started successfully');
-        
-        // Strategy 2: Explicit context resume for mobile browsers
-        if (Tone.context.state !== 'running') {
-          await Tone.context.resume();
-          console.log('Audio context resumed');
+        // Phone Strategy 1: Force context creation and immediate resume
+        if (!Tone.context || Tone.context.state === 'closed') {
+          console.log('Creating new audio context...');
+          // Force new context creation
+          Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
         }
         
-        // Strategy 3: Create and play a silent sound to fully unlock audio
-        const testSynth = new Tone.Oscillator(440, "sine").toDestination();
-        testSynth.volume.value = -60; // Very quiet
-        testSynth.start();
-        testSynth.stop("+0.1");
+        // Phone Strategy 2: Multiple aggressive resume attempts
+        let resumeAttempts = 0;
+        while (Tone.context.state !== 'running' && resumeAttempts < 5) {
+          console.log(`Resume attempt ${resumeAttempts + 1}, context state: ${Tone.context.state}`);
+          await Tone.context.resume();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          resumeAttempts++;
+        }
         
-        // Wait a moment for the test sound
-        await new Promise(resolve => setTimeout(resolve, 150));
+        // Phone Strategy 3: Start Tone.js transport
+        await Tone.start();
+        console.log('Tone.js transport started');
         
-        // Create the main synth
-        synth = new Tone.AMSynth({
-          oscillator: { type: "sine" },
-          envelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 }
-        }).toDestination();
-        
-        // Set volume
-        synth.volume.value = -10;
-        
-        audioInitialized = true;
-        audioReady = true;
-        updateAudioStatus('ready', '🎵 Audio Ready!');
-        console.log('Audio system fully initialized');
-        return true;
+        // Phone Strategy 4: Create synth AFTER context is definitely running
+        if (Tone.context.state === 'running') {
+          console.log('Creating synth with running context...');
+          
+          // Dispose old synth if it exists
+          if (synth) {
+            synth.dispose();
+          }
+          
+          // Create with simpler settings for phone compatibility
+          synth = new Tone.Synth({
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 }
+          }).toDestination();
+          
+          synth.volume.value = -15;
+          
+          // Phone Strategy 5: Immediate test note to verify audio pipeline
+          console.log('Playing test note...');
+          synth.triggerAttackRelease("C4", "0.1");
+          
+          // Wait for test note
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          audioInitialized = true;
+          audioReady = true;
+          updateAudioStatus('ready', '🎵 Audio Ready!');
+          console.log('Audio system fully initialized and tested');
+          return true;
+        } else {
+          throw new Error(`Audio context failed to start: ${Tone.context.state}`);
+        }
         
       } catch (error) {
         console.error('Audio initialization failed:', error);
         audioUnlockAttempts++;
         
         if (audioUnlockAttempts < maxAudioUnlockAttempts) {
-          updateAudioStatus('error', '🔊 Retrying audio...');
-          // Retry after a delay
+          updateAudioStatus('error', `🔊 Retry ${audioUnlockAttempts}/${maxAudioUnlockAttempts}...`);
+          // Longer delay for phones
           setTimeout(() => {
             initAudio();
-          }, 1000);
+          }, 2000);
         } else {
-          updateAudioStatus('error', '🔇 Audio unavailable');
+          updateAudioStatus('error', '🔇 Audio blocked by browser');
           setTimeout(() => {
             audioStatus.style.display = 'none';
-          }, 3000);
+          }, 5000);
         }
         return false;
       }
@@ -948,39 +968,37 @@ canvas {
 
     // Ensure audio is ready before playing sounds
     async function ensureAudioReady() {
-      if (!audioInitialized || !audioReady) {
+      // Always check context state for phones
+      if (!audioInitialized || !audioReady || Tone.context.state !== 'running') {
+        console.log('Audio not ready, attempting initialization...');
         const success = await initAudio();
         if (!success) {
-          console.log('Audio not available, continuing without sound');
+          console.log('Audio initialization failed, continuing silently');
           return false;
         }
       }
       return true;
     }
 
-    // Phone-specific audio unlock function
+    // Simplified but more reliable phone audio unlock
     async function phoneAudioUnlock() {
       try {
-        // For phones, we need to be more aggressive about unlocking
-        if (Tone.context.state === 'suspended') {
-          // Multiple resume attempts
-          for (let i = 0; i < 3; i++) {
+        console.log('Phone audio unlock starting...');
+        
+        // Force context resume multiple times
+        for (let i = 0; i < 3; i++) {
+          if (Tone.context.state === 'suspended' || Tone.context.state === 'closed') {
             await Tone.context.resume();
-            await new Promise(resolve => setTimeout(resolve, 100));
-            if (Tone.context.state === 'running') break;
+            console.log(`Phone unlock attempt ${i + 1}, state: ${Tone.context.state}`);
+            await new Promise(resolve => setTimeout(resolve, 200));
           }
+          if (Tone.context.state === 'running') break;
         }
         
-        // Create a more robust test sound for phones
-        if (Tone.context.state === 'running') {
-          const phoneTestSynth = new Tone.Synth().toDestination();
-          phoneTestSynth.volume.value = -40;
-          phoneTestSynth.triggerAttackRelease('C4', '0.1');
-          
-          // Dispose after use
-          setTimeout(() => {
-            phoneTestSynth.dispose();
-          }, 500);
+        // If context is running, play a test note immediately
+        if (Tone.context.state === 'running' && synth) {
+          console.log('Playing phone test note...');
+          synth.triggerAttackRelease('C4', '0.05');
         }
         
         return Tone.context.state === 'running';
@@ -1122,41 +1140,46 @@ canvas {
       return minDistance < 100 ? closestColor : null;
     }
 
-    // Enhanced note playing with phone compatibility
+    // Enhanced note playing with immediate context checking
     async function playNote(colorName) {
       if (!colorName) return;
       
       const note = colorNotes[colorName];
       if (!note) return;
       
-      // Ensure audio is ready
-      const audioIsReady = await ensureAudioReady();
-      if (!audioIsReady || !synth) {
-        console.log('Audio not ready, skipping note');
+      // Critical: Always check context state before playing
+      if (Tone.context.state !== 'running') {
+        console.log('Context not running, attempting unlock...');
+        await phoneAudioUnlock();
+      }
+      
+      if (!synth) {
+        console.log('No synth available');
         return;
       }
       
       try {
-        // Extra check for phones
-        if (isTouchDevice && Tone.context.state !== 'running') {
-          await phoneAudioUnlock();
-        }
-        
         if (Tone.context.state === 'running') {
+          console.log(`🎵 Playing ${note} for ${colorName}`);
+          
+          // Phone-optimized note playing
           if (isGradientMode) {
-            synth.triggerAttackRelease(note, "4n");
+            synth.triggerAttackRelease(note, "0.3");
           } else {
-            synth.triggerAttackRelease(note, "8n");
+            synth.triggerAttackRelease(note, "0.2");
           }
-          console.log(`Playing note: ${note} for color: ${colorName}`);
         } else {
-          console.log('Audio context not running, cannot play note');
+          console.log(`Cannot play note, context state: ${Tone.context.state}`);
+          // Try one more unlock attempt
+          setTimeout(async () => {
+            await initAudio();
+          }, 100);
         }
       } catch (error) {
         console.error('Note playback error:', error);
-        // Try to reinitialize audio
+        // Reset audio system on error
         audioReady = false;
-        setTimeout(initAudio, 100);
+        audioInitialized = false;
       }
     }
 
@@ -1381,27 +1404,46 @@ canvas {
       return { x, y };
     }
 
-    // Enhanced start draw function with aggressive audio initialization for phones
+    // Enhanced start draw function with immediate audio setup for phones
     async function startDraw(e) {
       e.preventDefault();
       
-      // For phones, try multiple unlock strategies simultaneously
-      if (isTouchDevice && !audioReady) {
-        updateAudioStatus('initializing', '🔊 Unlocking audio...');
+      // CRITICAL: Initialize audio IMMEDIATELY on touch for phones
+      if (isTouchDevice) {
+        console.log('Touch detected - immediate audio init');
         
-        // Multiple parallel attempts
-        const unlockPromises = [
-          initAudio(),
-          phoneAudioUnlock(),
-          Tone.start().catch(() => false)
-        ];
-        
-        try {
-          await Promise.race(unlockPromises);
-        } catch (error) {
-          console.log('Audio unlock failed, continuing without sound');
+        // Don't wait - initialize synchronously as much as possible
+        if (!audioInitialized || Tone.context.state !== 'running') {
+          // Immediate context operations
+          try {
+            if (!Tone.context) {
+              Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
+            }
+            
+            // Resume context immediately
+            if (Tone.context.state === 'suspended') {
+              Tone.context.resume();
+            }
+            
+            // Start Tone.js immediately  
+            Tone.start();
+            
+            // Create synth immediately if context allows
+            if (Tone.context.state === 'running' || Tone.context.state === 'suspended') {
+              if (synth) synth.dispose();
+              synth = new Tone.Synth().toDestination();
+              synth.volume.value = -12;
+              audioInitialized = true;
+              audioReady = true;
+              updateAudioStatus('ready', '🎵 Audio Ready!');
+              console.log('Immediate audio setup complete');
+            }
+          } catch (error) {
+            console.error('Immediate audio setup failed:', error);
+          }
         }
       } else {
+        // Desktop/iPad - use existing method
         ensureAudioReady();
       }
       
@@ -1424,8 +1466,8 @@ canvas {
         nextGradientColor = gradientColors[1];
         colorTransitionProgress = 0;
         
-        // Play initial gradient sound
-        playNote(currentGradientColor.name);
+        // Play initial gradient sound immediately
+        setTimeout(() => playNote(currentGradientColor.name), 50);
       }
       
       draw(coords.x, coords.y);
@@ -1464,15 +1506,35 @@ canvas {
       }
     }
 
-    // Enhanced event handlers with audio initialization
+    // Enhanced event handlers with immediate audio initialization
     function handleButtonClick(callback) {
-      return async function(e) {
+      return function(e) {
         e.preventDefault();
         e.stopPropagation();
         
-        // Always try to initialize audio on user interaction
-        if (!audioReady) {
-          await ensureAudioReady();
+        // For phones: Initialize audio IMMEDIATELY on any button press
+        if (isTouchDevice && (!audioInitialized || Tone.context.state !== 'running')) {
+          console.log('Button pressed - immediate audio unlock');
+          
+          // Synchronous audio unlock attempt
+          try {
+            if (!Tone.context) {
+              Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
+            }
+            
+            Tone.context.resume();
+            Tone.start();
+            
+            if (!synth && (Tone.context.state === 'running' || Tone.context.state === 'suspended')) {
+              synth = new Tone.Synth().toDestination();
+              synth.volume.value = -12;
+              audioInitialized = true;
+              audioReady = true;
+              updateAudioStatus('ready', '🎵 Ready!');
+            }
+          } catch (error) {
+            console.error('Button audio unlock failed:', error);
+          }
         }
         
         callback.call(this, e);
@@ -1591,20 +1653,78 @@ canvas {
       colorCanvas.addEventListener('mousemove', moveDraw);
     }
 
-    // Multiple audio initialization triggers
-    const audioUnlockEvents = ['touchstart', 'touchend', 'click', 'keydown'];
-    
-    audioUnlockEvents.forEach(eventType => {
-      document.addEventListener(eventType, async function unlockAudio() {
-        if (!audioInitialized) {
-          await initAudio();
+    // Immediate audio unlock on ANY user interaction
+    const immediateAudioUnlock = function(e) {
+      if (!audioInitialized || Tone.context.state !== 'running') {
+        console.log(`${e.type} event - attempting immediate unlock`);
+        
+        try {
+          // Create context if needed
+          if (!Tone.context || Tone.context.state === 'closed') {
+            Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
+            console.log('Created new audio context');
+          }
+          
+          // Resume immediately
+          if (Tone.context.state === 'suspended') {
+            Tone.context.resume().then(() => {
+              console.log('Context resumed successfully');
+            });
+          }
+          
+          // Start Tone.js
+          Tone.start().then(() => {
+            console.log('Tone.js started');
+            
+            // Create synth if context is ready
+            if ((Tone.context.state === 'running' || Tone.context.state === 'suspended') && !synth) {
+              synth = new Tone.Synth().toDestination();
+              synth.volume.value = -12;
+              audioInitialized = true;
+              audioReady = true;
+              updateAudioStatus('ready', '🎵 Audio Ready!');
+              console.log('Synth created and ready');
+              
+              // Test note to verify
+              setTimeout(() => {
+                if (synth && Tone.context.state === 'running') {
+                  synth.triggerAttackRelease('C4', '0.1');
+                  console.log('Test note played');
+                }
+              }, 100);
+            }
+          });
+          
+        } catch (error) {
+          console.error('Immediate unlock failed:', error);
         }
-        // Remove this specific listener after first successful init
-        if (audioReady) {
-          document.removeEventListener(eventType, unlockAudio);
-        }
-      }, { once: false });
+      }
+    };
+
+    // Add immediate unlock to multiple events
+    const unlockEvents = ['touchstart', 'touchend', 'click', 'pointerdown'];
+    unlockEvents.forEach(eventType => {
+      document.addEventListener(eventType, immediateAudioUnlock, { 
+        passive: true,
+        capture: true 
+      });
     });
+
+    // Remove the old multi-event listeners and replace with immediate unlock
+    // Multiple audio initialization triggers
+    // const audioUnlockEvents = ['touchstart', 'touchend', 'click', 'keydown'];
+    
+    // audioUnlockEvents.forEach(eventType => {
+    //   document.addEventListener(eventType, async function unlockAudio() {
+    //     if (!audioInitialized) {
+    //       await initAudio();
+    //     }
+    //     // Remove this specific listener after first successful init
+    //     if (audioReady) {
+    //       document.removeEventListener(eventType, unlockAudio);
+    //     }
+    //   }, { once: false });
+    // });
 
     // Continuous audio maintenance for eraser
     setInterval(maintainEraserAudio, 50);
