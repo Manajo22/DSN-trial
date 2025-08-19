@@ -285,38 +285,6 @@ canvas {
   justify-content: center;
 }
 
-/* Audio Status Indicator */
-#audioStatus {
-  position: fixed;
-  top: clamp(20px, 4vh, 40px);
-  right: clamp(80px, 15vw, 120px);
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  z-index: 25;
-  display: none;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-
-#audioStatus.ready {
-  background: rgba(0, 150, 0, 0.8);
-  animation: none;
-  opacity: 1;
-}
-
-#audioStatus.error {
-  background: rgba(150, 0, 0, 0.8);
-  animation: none;
-  opacity: 1;
-}
-
 /* Color button styles */
 .pink { background-color: rgb(255, 0, 221); }
 .purple { background-color: rgb(92, 0, 157); }
@@ -594,9 +562,6 @@ canvas {
 
   <div id="title">Draw, Hide, and Scratch to reveal!</div>
   
-  <!-- Audio Status Indicator -->
-  <div id="audioStatus">🔊 Initializing...</div>
-  
   <!-- Circular Dropdown -->
   <div id="circularDropdown">
     <button id="dropdownToggle">☰</button>
@@ -650,34 +615,16 @@ canvas {
     const ctx = colorCanvas.getContext('2d');
     const aCtx = aOverlay.getContext('2d');
     const backgroundImage = new Image();
-    const audioStatus = document.getElementById('audioStatus');
-    
     let audioInitialized = false;
-    let audioReady = false;
     let isTouchDevice = false;
     let isAMode = false;
     let aImage = null;
     let selectedLetter = 'A';
     let selectedButton = null;
-    let audioUnlockAttempts = 0;
-    let maxAudioUnlockAttempts = 5;
 
     // Detect touch device
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
       isTouchDevice = true;
-    }
-
-    // Enhanced audio status display
-    function updateAudioStatus(status, message) {
-      audioStatus.style.display = 'block';
-      audioStatus.className = status;
-      audioStatus.textContent = message;
-      
-      if (status === 'ready') {
-        setTimeout(() => {
-          audioStatus.style.display = 'none';
-        }, 2000);
-      }
     }
 
     // Create letter grid
@@ -820,7 +767,7 @@ canvas {
     }
 
     function setAMode() {
-      ensureAudioReady();
+      initAudio();
       isAMode = true;
       isGradientMode = false;
       isEraserMode = false;
@@ -885,126 +832,27 @@ canvas {
       { name: 'blue', rgb: 'rgb(125, 244, 255)', r: 125, g: 244, b: 255 }
     ];
 
-    // Phone-first audio initialization strategy
+    // Initialize audio context on first user interaction
     async function initAudio() {
-      if (audioInitialized) return true;
-      
-      try {
-        updateAudioStatus('initializing', '🔊 Starting audio...');
-        console.log('Starting audio initialization...');
-        
-        // Phone Strategy 1: Force context creation and immediate resume
-        if (!Tone.context || Tone.context.state === 'closed') {
-          console.log('Creating new audio context...');
-          // Force new context creation
-          Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
-        }
-        
-        // Phone Strategy 2: Multiple aggressive resume attempts
-        let resumeAttempts = 0;
-        while (Tone.context.state !== 'running' && resumeAttempts < 5) {
-          console.log(`Resume attempt ${resumeAttempts + 1}, context state: ${Tone.context.state}`);
-          await Tone.context.resume();
-          await new Promise(resolve => setTimeout(resolve, 100));
-          resumeAttempts++;
-        }
-        
-        // Phone Strategy 3: Start Tone.js transport
-        await Tone.start();
-        console.log('Tone.js transport started');
-        
-        // Phone Strategy 4: Create synth AFTER context is definitely running
-        if (Tone.context.state === 'running') {
-          console.log('Creating synth with running context...');
-          
-          // Dispose old synth if it exists
-          if (synth) {
-            synth.dispose();
+      if (!audioInitialized) {
+        try {
+          // iOS/Safari/Android audio unlock workaround
+          if (window.Tone && Tone.context && Tone.context.state !== 'running') {
+            const unlock = () => {
+              Tone.context.resume();
+              document.removeEventListener('touchstart', unlock);
+              document.removeEventListener('click', unlock);
+            };
+            document.addEventListener('touchstart', unlock, { once: true });
+            document.addEventListener('click', unlock, { once: true });
           }
-          
-          // Create with simpler settings for phone compatibility
-          synth = new Tone.Synth({
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 }
-          }).toDestination();
-          
-          synth.volume.value = -15;
-          
-          // Phone Strategy 5: Immediate test note to verify audio pipeline
-          console.log('Playing test note...');
-          synth.triggerAttackRelease("C4", "0.1");
-          
-          // Wait for test note
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
+          await Tone.start();
+          synth = new Tone.AMSynth().toDestination();
           audioInitialized = true;
-          audioReady = true;
-          updateAudioStatus('ready', '🎵 Audio Ready!');
-          console.log('Audio system fully initialized and tested');
-          return true;
-        } else {
-          throw new Error(`Audio context failed to start: ${Tone.context.state}`);
+          console.log('Audio initialized successfully');
+        } catch (error) {
+          console.log('Audio initialization failed:', error);
         }
-        
-      } catch (error) {
-        console.error('Audio initialization failed:', error);
-        audioUnlockAttempts++;
-        
-        if (audioUnlockAttempts < maxAudioUnlockAttempts) {
-          updateAudioStatus('error', `🔊 Retry ${audioUnlockAttempts}/${maxAudioUnlockAttempts}...`);
-          // Longer delay for phones
-          setTimeout(() => {
-            initAudio();
-          }, 2000);
-        } else {
-          updateAudioStatus('error', '🔇 Audio blocked by browser');
-          setTimeout(() => {
-            audioStatus.style.display = 'none';
-          }, 5000);
-        }
-        return false;
-      }
-    }
-
-    // Ensure audio is ready before playing sounds
-    async function ensureAudioReady() {
-      // Always check context state for phones
-      if (!audioInitialized || !audioReady || Tone.context.state !== 'running') {
-        console.log('Audio not ready, attempting initialization...');
-        const success = await initAudio();
-        if (!success) {
-          console.log('Audio initialization failed, continuing silently');
-          return false;
-        }
-      }
-      return true;
-    }
-
-    // Simplified but more reliable phone audio unlock
-    async function phoneAudioUnlock() {
-      try {
-        console.log('Phone audio unlock starting...');
-        
-        // Force context resume multiple times
-        for (let i = 0; i < 3; i++) {
-          if (Tone.context.state === 'suspended' || Tone.context.state === 'closed') {
-            await Tone.context.resume();
-            console.log(`Phone unlock attempt ${i + 1}, state: ${Tone.context.state}`);
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-          if (Tone.context.state === 'running') break;
-        }
-        
-        // If context is running, play a test note immediately
-        if (Tone.context.state === 'running' && synth) {
-          console.log('Playing phone test note...');
-          synth.triggerAttackRelease('C4', '0.05');
-        }
-        
-        return Tone.context.state === 'running';
-      } catch (error) {
-        console.error('Phone audio unlock failed:', error);
-        return false;
       }
     }
 
@@ -1018,7 +866,7 @@ canvas {
     }
 
     function setColor(color, button) {
-      ensureAudioReady();
+      initAudio();
       currentColor = color;
       isGradientMode = false;
       isEraserMode = false;
@@ -1027,7 +875,7 @@ canvas {
     }
 
     function setGradientMode(button) {
-      ensureAudioReady();
+      initAudio();
       isGradientMode = true;
       isEraserMode = false;
       setSelectedButton(button);
@@ -1042,7 +890,7 @@ canvas {
     }
 
     function setEraserMode(button) {
-      ensureAudioReady();
+      initAudio();
       isEraserMode = true;
       isGradientMode = false;
       setSelectedButton(button);
@@ -1140,46 +988,18 @@ canvas {
       return minDistance < 100 ? closestColor : null;
     }
 
-    // Enhanced note playing with immediate context checking
     async function playNote(colorName) {
-      if (!colorName) return;
-      
       const note = colorNotes[colorName];
-      if (!note) return;
-      
-      // Critical: Always check context state before playing
-      if (Tone.context.state !== 'running') {
-        console.log('Context not running, attempting unlock...');
-        await phoneAudioUnlock();
-      }
-      
-      if (!synth) {
-        console.log('No synth available');
-        return;
-      }
-      
-      try {
-        if (Tone.context.state === 'running') {
-          console.log(`🎵 Playing ${note} for ${colorName}`);
-          
-          // Phone-optimized note playing
+      if (note && audioInitialized && synth) {
+        try {
           if (isGradientMode) {
-            synth.triggerAttackRelease(note, "0.3");
+            synth.triggerAttackRelease(note, "4n");
           } else {
-            synth.triggerAttackRelease(note, "0.2");
+            synth.triggerAttackRelease(note, "8n");
           }
-        } else {
-          console.log(`Cannot play note, context state: ${Tone.context.state}`);
-          // Try one more unlock attempt
-          setTimeout(async () => {
-            await initAudio();
-          }, 100);
+        } catch (error) {
+          console.log('Audio playback error:', error);
         }
-      } catch (error) {
-        console.error('Note playback error:', error);
-        // Reset audio system on error
-        audioReady = false;
-        audioInitialized = false;
       }
     }
 
@@ -1404,49 +1224,9 @@ canvas {
       return { x, y };
     }
 
-    // Enhanced start draw function with immediate audio setup for phones
-    async function startDraw(e) {
+    function startDraw(e) {
       e.preventDefault();
-      
-      // CRITICAL: Initialize audio IMMEDIATELY on touch for phones
-      if (isTouchDevice) {
-        console.log('Touch detected - immediate audio init');
-        
-        // Don't wait - initialize synchronously as much as possible
-        if (!audioInitialized || Tone.context.state !== 'running') {
-          // Immediate context operations
-          try {
-            if (!Tone.context) {
-              Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
-            }
-            
-            // Resume context immediately
-            if (Tone.context.state === 'suspended') {
-              Tone.context.resume();
-            }
-            
-            // Start Tone.js immediately  
-            Tone.start();
-            
-            // Create synth immediately if context allows
-            if (Tone.context.state === 'running' || Tone.context.state === 'suspended') {
-              if (synth) synth.dispose();
-              synth = new Tone.Synth().toDestination();
-              synth.volume.value = -12;
-              audioInitialized = true;
-              audioReady = true;
-              updateAudioStatus('ready', '🎵 Audio Ready!');
-              console.log('Immediate audio setup complete');
-            }
-          } catch (error) {
-            console.error('Immediate audio setup failed:', error);
-          }
-        }
-      } else {
-        // Desktop/iPad - use existing method
-        ensureAudioReady();
-      }
-      
+      initAudio();
       painting = true;
       
       lastPlayedNote = null;
@@ -1465,9 +1245,13 @@ canvas {
         currentGradientColor = gradientColors[0];
         nextGradientColor = gradientColors[1];
         colorTransitionProgress = 0;
-        
-        // Play initial gradient sound immediately
-        setTimeout(() => playNote(currentGradientColor.name), 50);
+        if (audioInitialized && synth) {
+          try {
+            synth.triggerAttackRelease(colorNotes[currentGradientColor.name], "2n");
+          } catch (error) {
+            console.log('Audio playback error:', error);
+          }
+        }
       }
       
       draw(coords.x, coords.y);
@@ -1506,83 +1290,73 @@ canvas {
       }
     }
 
-    // Enhanced event handlers with immediate audio initialization
-    function handleButtonClick(callback) {
-      return function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // For phones: Initialize audio IMMEDIATELY on any button press
-        if (isTouchDevice && (!audioInitialized || Tone.context.state !== 'running')) {
-          console.log('Button pressed - immediate audio unlock');
-          
-          // Synchronous audio unlock attempt
-          try {
-            if (!Tone.context) {
-              Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
-            }
-            
-            Tone.context.resume();
-            Tone.start();
-            
-            if (!synth && (Tone.context.state === 'running' || Tone.context.state === 'suspended')) {
-              synth = new Tone.Synth().toDestination();
-              synth.volume.value = -12;
-              audioInitialized = true;
-              audioReady = true;
-              updateAudioStatus('ready', '🎵 Ready!');
-            }
-          } catch (error) {
-            console.error('Button audio unlock failed:', error);
-          }
-        }
-        
-        callback.call(this, e);
-      };
-    }
+    dropdownToggle.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDropdown();
+    });
 
-    dropdownToggle.addEventListener('click', handleButtonClick(toggleDropdown));
-    dropdownToggle.addEventListener('touchend', handleButtonClick(toggleDropdown));
+    dropdownToggle.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDropdown();
+    });
 
     // Color button event listeners
     document.querySelectorAll('.dropdown-item[data-color]').forEach(button => {
-      button.addEventListener('click', handleButtonClick(function(e) {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         const color = this.getAttribute('data-color');
         setColor(color, this);
-      }));
+      });
       
-      button.addEventListener('touchend', handleButtonClick(function(e) {
+      button.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         const color = this.getAttribute('data-color');
         setColor(color, this);
-      }));
+      });
     });
 
     // Gradient button
-    document.getElementById('gradientBtn').addEventListener('click', handleButtonClick(function(e) {
+    document.getElementById('gradientBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       setGradientMode(this);
-    }));
+    });
 
-    document.getElementById('gradientBtn').addEventListener('touchend', handleButtonClick(function(e) {
+    document.getElementById('gradientBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       setGradientMode(this);
-    }));
+    });
 
     // Eraser button
-    document.getElementById('eraserBtn').addEventListener('click', handleButtonClick(function(e) {
+    document.getElementById('eraserBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       setEraserMode(this);
-    }));
+    });
 
-    document.getElementById('eraserBtn').addEventListener('touchend', handleButtonClick(function(e) {
+    document.getElementById('eraserBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       setEraserMode(this);
-    }));
+    });
 
     // A/a button
-    document.getElementById('aBtn').addEventListener('click', handleButtonClick(function(e) {
+    document.getElementById('aBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       document.getElementById('letterGridModal').style.display = 'flex';
-    }));
+    });
 
-    document.getElementById('aBtn').addEventListener('touchend', handleButtonClick(function(e) {
+    document.getElementById('aBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       document.getElementById('letterGridModal').style.display = 'flex';
-    }));
+    });
 
     // Close letter grid
     document.getElementById('closeLetterGrid').addEventListener('click', function(e) {
@@ -1653,91 +1427,15 @@ canvas {
       colorCanvas.addEventListener('mousemove', moveDraw);
     }
 
-    // Immediate audio unlock on ANY user interaction
-    const immediateAudioUnlock = function(e) {
-      if (!audioInitialized || Tone.context.state !== 'running') {
-        console.log(`${e.type} event - attempting immediate unlock`);
-        
-        try {
-          // Create context if needed
-          if (!Tone.context || Tone.context.state === 'closed') {
-            Tone.setContext(new (window.AudioContext || window.webkitAudioContext)());
-            console.log('Created new audio context');
-          }
-          
-          // Resume immediately
-          if (Tone.context.state === 'suspended') {
-            Tone.context.resume().then(() => {
-              console.log('Context resumed successfully');
-            });
-          }
-          
-          // Start Tone.js
-          Tone.start().then(() => {
-            console.log('Tone.js started');
-            
-            // Create synth if context is ready
-            if ((Tone.context.state === 'running' || Tone.context.state === 'suspended') && !synth) {
-              synth = new Tone.Synth().toDestination();
-              synth.volume.value = -12;
-              audioInitialized = true;
-              audioReady = true;
-              updateAudioStatus('ready', '🎵 Audio Ready!');
-              console.log('Synth created and ready');
-              
-              // Test note to verify
-              setTimeout(() => {
-                if (synth && Tone.context.state === 'running') {
-                  synth.triggerAttackRelease('C4', '0.1');
-                  console.log('Test note played');
-                }
-              }, 100);
-            }
-          });
-          
-        } catch (error) {
-          console.error('Immediate unlock failed:', error);
-        }
-      }
-    };
-
-    // Add immediate unlock to multiple events
-    const unlockEvents = ['touchstart', 'touchend', 'click', 'pointerdown'];
-    unlockEvents.forEach(eventType => {
-      document.addEventListener(eventType, immediateAudioUnlock, { 
-        passive: true,
-        capture: true 
-      });
-    });
-
-    // Remove the old multi-event listeners and replace with immediate unlock
-    // Multiple audio initialization triggers
-    // const audioUnlockEvents = ['touchstart', 'touchend', 'click', 'keydown'];
-    
-    // audioUnlockEvents.forEach(eventType => {
-    //   document.addEventListener(eventType, async function unlockAudio() {
-    //     if (!audioInitialized) {
-    //       await initAudio();
-    //     }
-    //     // Remove this specific listener after first successful init
-    //     if (audioReady) {
-    //       document.removeEventListener(eventType, unlockAudio);
-    //     }
-    //   }, { once: false });
-    // });
+    // Ensure audio context is started on any user interaction
+    document.addEventListener('touchstart', initAudio, { once: true });
+    document.addEventListener('click', initAudio, { once: true });
 
     // Continuous audio maintenance for eraser
     setInterval(maintainEraserAudio, 50);
 
     // Set initial color selection
     setColor('rgb(255, 0, 221)', document.querySelector('.dropdown-item.pink'));
-
-    // Initial audio setup attempt
-    setTimeout(() => {
-      if (!audioInitialized) {
-        updateAudioStatus('initializing', '🔊 Tap anywhere to enable audio');
-      }
-    }, 1000);
   </script>
 </body>
 </html>
